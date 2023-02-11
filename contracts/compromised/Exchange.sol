@@ -41,6 +41,7 @@ contract Exchange is ReentrancyGuard {
 
         id = token.safeMint(msg.sender);
         unchecked {
+            // Refund
             payable(msg.sender).sendValue(msg.value - price);
         }
 
@@ -55,6 +56,7 @@ contract Exchange is ReentrancyGuard {
             revert TransferNotApproved();
 
         // Price should be in [wei / NFT]
+        // Maybe this should be manipulated in order to get highest price
         uint256 price = oracle.getMedianPrice(token.symbol());
         if (address(this).balance < price)
             revert NotEnoughFunds();

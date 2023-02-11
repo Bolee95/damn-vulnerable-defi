@@ -72,6 +72,7 @@ contract UnstoppableVault is IERC3156FlashLender, ReentrancyGuard, Owned, ERC462
      * @inheritdoc ERC4626
      */
     function totalAssets() public view override returns (uint256) {
+        // IF reentrancy is true
         assembly { // better safe than sorry
             if eq(sload(0), 2) {
                 mstore(0x00, 0xed3ba6a6)
