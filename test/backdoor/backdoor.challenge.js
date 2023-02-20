@@ -50,6 +50,7 @@ describe('[Challenge] Backdoor', function () {
         address callback_
  */
     it('Execution', async function () {
+        const delegateCaller = await (await ethers.getContractFactory('DelegateCaller')).deploy();
         const backdoorAttacker = await (await ethers.getContractFactory('BackdoorAttacker')).deploy(
             walletFactory.address,
             token.address,
@@ -63,7 +64,8 @@ describe('[Challenge] Backdoor', function () {
                 bob.address,
                 charlie.address,
                 david.address
-            ]
+            ],
+            delegateCaller.address
         );
     });
 
